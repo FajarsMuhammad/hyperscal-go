@@ -9,6 +9,7 @@ import (
 	"hyperscal-go/internal/repository/postgres"
 	"hyperscal-go/internal/service"
 	"hyperscal-go/pkg/database"
+	kafkapkg "hyperscal-go/pkg/kafka"
 	"hyperscal-go/pkg/middleware"
 	"log"
 
@@ -60,6 +61,14 @@ func main() {
 	authService := service.NewAuthService(userRepo)
 	authController := controller.NewAuthController(authService)
 
+	// Initialize Kafka client and controller
+	kafkaClient := kafkapkg.NewKafkaClient(&cfg.Kafka)
+	kafkaService, err := service.NewKafkaService(kafkaClient)
+	if err != nil {
+		log.Printf("Warning: Kafka unavailable, kafka endpoints will return errors: %v", err)
+	}
+	kafkaController := controller.NewKafkaController(kafkaService)
+
 	// Setup Gin router
 	router := gin.Default()
 
@@ -99,6 +108,12 @@ func main() {
 				cities.POST("", cityController.CreateCity)
 				cities.GET("", cityController.GetAllCities)
 				cities.GET("search", cityController.SearchCities)
+			}
+
+			kafka := protected.Group("/kafka")
+			{
+				kafka.POST("/user-created", kafkaController.PublishUserCreated)
+				kafka.POST("/order-placed", kafkaController.PublishOrderPlaced)
 			}
 		}
 
